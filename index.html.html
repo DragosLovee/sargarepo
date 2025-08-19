@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Terminal</title>
+    
+    <link rel="manifest" href="manifest.json">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --primary-color: #5dff51; /* Классический зеленый */
+            --bg-color: #041103;
+            --border-color: rgba(93, 255, 81, 0.4);
+        }
+
+        body {
+            background-color: #000;
+            color: var(--primary-color);
+            font-family: 'VT323', monospace;
+            font-size: 22px;
+            line-height: 1.2;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* --- ЭКРАН ЗАГРУЗКИ --- */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-color);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-shadow: 0 0 5px var(--primary-color);
+        }
+        .logo {
+            font-size: 10em;
+            letter-spacing: -5px;
+        }
+        .progress-bar {
+            width: 50%;
+            max-width: 600px;
+            height: 20px;
+            border: 1px solid var(--border-color);
+            margin-top: 20px;
+            padding: 2px;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            animation: load 3s linear forwards; /* 3 секунды загрузки */
+        }
+        .copyright {
+            margin-top: 15px;
+            font-size: 1em;
+        }
+
+        @keyframes load {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+
+
+        /* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
+        .crt-screen {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-color);
+            animation: flicker 0.15s infinite;
+        }
+        .crt-screen::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 4px, 3px 100%; pointer-events: none;
+        }
+        .crt-screen::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.8));
+            pointer-events: none; z-index: 3;
+        }
+
+        .terminal-container {
+            display: flex; padding: 30px; height: calc(100vh - 60px);
+        }
+        .sidebar { width: 25%; margin-right: 20px; }
+        .content-pane { width: 75%; flex-grow: 1; }
+        .panel {
+            border: 1px solid var(--border-color); padding: 15px; height: 100%; box-sizing: border-box;
+        }
+        .panel-header {
+            background-color: var(--primary-color); color: var(--bg-color); text-shadow: none;
+            padding: 5px 10px; margin: -15px -15px 15px -15px; text-align: center;
+        }
+        .folder-list .folder { padding: 5px 10px; margin-bottom: 5px; border: 1px solid transparent; cursor: pointer; }
+        .folder-list .folder.selected { background-color: var(--primary-color); color: var(--bg-color); text-shadow: none; }
+        #content-header { border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+        #content-body { white-space: pre-wrap; }
+        
+        .hidden { display: none !important; }
+
+        @keyframes flicker {
+            0% { opacity: 1; } 50% { opacity: 0.95; } 100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <div class="logo">LM-LINK</div>
+    <div class="progress-bar">
+        <div class="progress-bar-inner"></div>
+    </div>
+    <div class="copyright">(C) LM-LINK DATA SYSTEMS</div>
+</div>
+
+<div id="main-terminal" class="crt-screen hidden">
+    <div class="terminal-container">
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-header">ПАПКИ</div>
+                <div id="folder-list" class="folder-list"></div>
+            </div>
+        </div>
+        <div class="content-pane">
+            <div class="panel">
+                <div id="content-header">ЗАГРУЗКА...</div>
+                <div id="content-body">
+                    <p>ИСПОЛЬЗУЙТЕ [↑] И [↓] ДЛЯ НАВИГАЦИИ.</p>
+                    <p>НАЖМИТЕ [ENTER] ИЛИ КЛИКНИТЕ МЫШЬЮ ДЛЯ ВЫБОРА.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- ДАННЫЕ ТЕРМИНАЛА ---
+    const terminalData = [
+        {
+            title: "ЛИЧНОЕ", header: "ЗАПИСЬ КАПИТАНА #451",
+            content: "ДАТА: 21.09.2137\n\nСтранные шумы в вентиляции продолжаются. Команда на взводе. Инженер говорит, что это просто износ систем, но я ему не верю. Что-то здесь не так. Мы сменили курс на 'Севастополь', но я сомневаюсь, что мы доберемся туда в полном составе."
+        },
+        {
+            title: "ОБЩЕЕ", header: "ГРУЗОВОЙ МАНИФЕСТ 'ТОРРЕНСА'",
+            content: "ФРАХТОВАТЕЛЬ: 'ВЕЙЛАНД-ЮТАНИ'\n\nЗАДАЧА: ДОСТАВКА ПОИСКОВОЙ ГРУППЫ КОРПОРАЦИИ 'ВЕЙЛАНД-ЮТАНИ' НА СТАНЦИЮ 'СЕВАСТОПОЛЬ' И ОБРАТНО.\n\nПАССАЖИРЫ: СЭМЮЭЛЬС, КРИСТОФЕР. РИПЛИ, АМАНДА. ТЭЙЛОР, НИНА.\n\nКОЛИЧЕСТВО ПАЛУБ - 2\nЧЛЕНОВ ЭКИПАЖА - 2"
+        },
+        {
+            title: "СИСТЕМНЫЕ ЛОГИ", header: "ОШИБКА ШЛЮЗА #3",
+            content: "WARNING: AIRLOCK 3 PRESSURE SEAL COMPROMISED.\nCODE: 881-A\n\nRECOMMENDATION: IMMEDIATE MAINTENANCE REQUIRED.\nAVOID USING AIRLOCK UNTIL FURTHER NOTICE.\n\n...LOG CORRUPTED..."
+        }
+    ];
+
+    const folderListEl = document.getElementById('folder-list');
+    const contentHeaderEl = document.getElementById('content-header');
+    const contentBodyEl = document.getElementById('content-body');
+    let selectedIndex = 0;
+
+    // --- ПРОФЕССИОНАЛЬНАЯ РЕАЛИЗАЦИЯ ЧЕРЕЗ ДЕЛЕГИРОВАНИЕ ---
+
+    function initTerminal() {
+        // 1. Генерируем HTML для папок
+        folderListEl.innerHTML = terminalData.map((item, index) => {
+            return `<div class="folder" data-index="${index}">${item.title}</div>`;
+        }).join('');
+
+        // 2. Назначаем ОДИН обработчик на родительский контейнер
+        folderListEl.addEventListener('click', handleFolderInteraction);
+        
+        // 3. Добавляем поддержку клавиатуры
+        window.addEventListener('keydown', handleKeydown);
+
+        // 4. Инициализируем начальное состояние
+        updateSelection();
+    }
+    
+    // Единый обработчик для кликов и касаний
+    function handleFolderInteraction(event) {
+        // Находим элемент с классом .folder, по которому кликнули
+        const folderEl = event.target.closest('.folder');
+
+        // Если клик был не по папке, ничего не делаем
+        if (!folderEl) return;
+
+        // Получаем индекс из data-атрибута
+        const index = parseInt(folderEl.dataset.index, 10);
+        
+        selectedIndex = index;
+        updateSelection();
+        displayContent();
+    }
+
+    function updateSelection() {
+        const folders = document.querySelectorAll('.folder');
+        folders.forEach((folder, index) => {
+            folder.classList.toggle('selected', index === selectedIndex);
+        });
+    }
+    
+    function type(element, text, speed = 10) {
+        let i = 0;
+        element.innerHTML = '';
+        const interval = setInterval(() => {
+            if (i < text.length) {
+                element.innerHTML += text.charAt(i);
+                i++;
+            } else {
+                clearInterval(interval);
+            }
+        }, speed);
+    }
+
+    function displayContent() {
+        const item = terminalData[selectedIndex];
+        type(contentHeaderEl, item.header);
+        type(contentBodyEl, item.content);
+    }
+
+    function handleKeydown(event) {
+        let newIndex = selectedIndex;
+        if (event.key === 'ArrowUp') {
+            newIndex = (selectedIndex - 1 + terminalData.length) % terminalData.length;
+        } else if (event.key === 'ArrowDown') {
+            newIndex = (selectedIndex + 1) % terminalData.length;
+        } else if (event.key === 'Enter') {
+            displayContent();
+            return; // Выходим, чтобы не обновлять подсветку зря
+        }
+
+        if (newIndex !== selectedIndex) {
+            selectedIndex = newIndex;
+            updateSelection();
+        }
+    }
+
+    // --- ЛОГИКА ЗАПУСКА ---
+    const loadingTime = 3000; 
+    const loadingScreen = document.getElementById('loading-screen');
+    const mainTerminal = document.getElementById('main-terminal');
+
+    setTimeout(() => {
+        loadingScreen.classList.add('hidden'); 
+        mainTerminal.classList.remove('hidden'); 
+        initTerminal(); 
+    }, loadingTime);
+</script>
+
+<script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('Service Worker зарегистрирован успешно:', registration);
+          })
+          .catch(error => {
+            console.log('Ошибка регистрации Service Worker:', error);
+          });
+      });
+    }
+</script>
+
+</body>
+</html>

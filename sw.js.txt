@@ -1,0 +1,52 @@
+// Название кэша и файлы, которые мы хотим сохранить
+const CACHE_NAME = 'terminal-cache-v1';
+const assetsToCache = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
+];
+
+// Установка Service Worker и кэширование файлов
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Кэш открыт');
+        return cache.addAll(assetsToCache);
+      })
+  );
+});
+
+// Активация и управление старыми кэшами (не обязательно для начала, но хорошая практика)
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cache => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
+    })
+  );
+});
+
+
+// Перехват сетевых запросов
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    // Сначала ищем ответ в кэше
+    caches.match(event.request)
+      .then(response => {
+        // Если он есть в кэше, возвращаем его
+        if (response) {
+          return response;
+        }
+        // Если нет, делаем реальный запрос в сеть
+        return fetch(event.request);
+      })
+  );
+});
